@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mosaic - Interactive Prototype</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* slate-50 */
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .view {
+            display: none;
+        }
+        .view.active {
+            display: block;
+        }
+        .node {
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .node:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+        .architect-view .node:hover {
+             border-color: #4f46e5; /* indigo-600 */
+        }
+        .line {
+            stroke: #94a3b8; /* slate-400 */
+            stroke-width: 2;
+        }
+        .modal-backdrop {
+            background-color: rgba(0,0,0,0.5);
+            transition: opacity 0.3s ease;
+        }
+        .modal-content {
+            transition: transform 0.3s ease;
+        }
+        .choice-button {
+            transition: all 0.2s ease;
+            border-width: 2px;
+        }
+        .choice-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 14px 0 rgb(0 0 0 / 0.1);
+        }
+        .map-card {
+            transition: all 0.2s ease-in-out;
+        }
+        .map-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+        /* Custom animation for modal */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideInUp {
+            from { transform: translateY(20px) scale(0.98); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1;}
+        }
+        .modal-backdrop.active {
+            animation: fadeIn 0.3s forwards;
+        }
+        .modal-content.active {
+            animation: slideInUp 0.3s forwards;
+        }
+
+    </style>
+</head>
+<body class="overflow-hidden">
+
+    <!-- Switcher UI -->
+    <div id="switcher" class="fixed top-4 right-4 z-50 bg-white rounded-lg shadow-lg p-2 flex items-center space-x-2 border border-slate-200">
+        <span class="text-sm font-medium text-slate-700">VIEW AS:</span>
+        <button id="architectBtn" class="px-3 py-1.5 text-sm font-semibold rounded-md bg-indigo-600 text-white shadow-sm">Sarah (Architect)</button>
+        <button id="explorerBtn" class="px-3 py-1.5 text-sm font-semibold rounded-md bg-slate-200 text-slate-800">Leo (Explorer)</button>
+    </div>
+
+    <!-- Library View -->
+    <div id="libraryView" class="view active w-screen h-screen bg-slate-100">
+        <header class="bg-white border-b border-slate-200 p-4 flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold text-slate-800">My Maps Library</h1>
+                <p class="text-sm text-slate-500">Welcome, Sarah. Manage your learning maps here.</p>
+            </div>
+            <button class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 shadow-sm">Create New Map</button>
+        </header>
+        <div id="map-library-grid" class="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Map cards will be injected by JS -->
+        </div>
+    </div>
+
+    <!-- Architect (Editor) View -->
+    <div id="architectView" class="view w-screen h-screen bg-slate-100">
+        <header class="bg-white border-b border-slate-200 p-4 flex justify-between items-center">
+            <div class="flex items-center space-x-4">
+                <button id="backToLibraryBtn" class="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">&larr; Back to Library</button>
+                <div>
+                    <h1 class="text-xl font-bold text-slate-800">Map Architect</h1>
+                    <p id="editingMapTitle" class="text-sm text-slate-500">Building: <span class="font-semibold text-indigo-600"></span></p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button class="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">Add Node</button>
+                <button class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Save & Assign</button>
+            </div>
+        </header>
+        
+        <div class="relative w-full h-full">
+            <svg id="architect-svg" class="absolute inset-0 w-full h-full"></svg>
+            <div id="architect-nodes" class="relative">
+                <!-- Nodes will be injected here by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Explorer View -->
+    <div id="explorerView" class="view w-screen h-screen bg-slate-50">
+        <header class="p-4 flex justify-between items-center">
+             <div>
+                <h1 class="text-xl font-bold text-slate-800">Explorer Mode</h1>
+                <p id="exploringMapTitle" class="text-sm text-slate-500">Exploring: <span class="font-semibold text-teal-600"></span></p>
+            </div>
+             <div class="flex items-center space-x-2">
+                <span class="text-sm font-medium text-slate-600">Leo's Journey</span>
+                <div class="w-8 h-8 rounded-full bg-orange-400 flex items-center justify-center text-white font-bold">L</div>
+            </div>
+        </header>
+        <div class="relative w-full h-full">
+            <svg id="explorer-svg" class="absolute inset-0 w-full h-full"></svg>
+            <div id="explorer-nodes" class="relative">
+                <!-- Nodes will be injected here by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="architectModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="modal-content bg-white rounded-lg shadow-2xl w-full max-w-2xl transform opacity-0">
+             <div class="p-6 border-b border-slate-200 flex justify-between items-center">
+                <h2 class="text-lg font-bold text-slate-800">Edit Node: <span id="architectNodeTitle"></span></h2>
+                <button id="closeArchitectModal" class="text-slate-500 hover:text-slate-800">&times;</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Text Content (for Readers 📖)</label>
+                    <textarea class="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" rows="4" placeholder="Enter simple, clear text explanation..."></textarea>
+                </div>
+                 <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Audio Content (for Listeners 🎧)</label>
+                    <input type="file" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"/>
+                </div>
+                 <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Video Content (for Watchers ▶️)</label>
+                    <input type="text" class="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Paste YouTube or Vimeo link...">
+                </div>
+            </div>
+            <div class="p-4 bg-slate-50 border-t border-slate-200 flex justify-end space-x-2">
+                 <button class="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50" onclick="closeArchitectModal()">Cancel</button>
+                 <button class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700" onclick="closeArchitectModal()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+    <div id="explorerModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+         <div class="modal-backdrop fixed inset-0"></div>
+         <div id="explorerModalContent" class="modal-content bg-white rounded-lg shadow-2xl w-full max-w-3xl transform opacity-0"></div>
+    </div>
+
+<script>
+    // --- DOM ELEMENTS ---
+    const libraryView = document.getElementById('libraryView');
+    const architectView = document.getElementById('architectView');
+    const explorerView = document.getElementById('explorerView');
+    const architectBtn = document.getElementById('architectBtn');
+    const explorerBtn = document.getElementById('explorerBtn');
+    const backToLibraryBtn = document.getElementById('backToLibraryBtn');
+    const architectModal = document.getElementById('architectModal');
+    const architectNodeTitle = document.getElementById('architectNodeTitle');
+    const explorerModal = document.getElementById('explorerModal');
+    const explorerModalContent = document.getElementById('explorerModalContent');
+
+    // --- DATA ---
+    const mapsData = {
+        'map-sci-method': {
+            title: "The Scientific Method Map",
+            description: "A step-by-step guide to understanding the process of scientific inquiry.",
+            nodes: {
+                'node-1': { id: 'node-1', title: 'Observation & Question', top: '10%', left: '40%', color: 'bg-blue-100', textColor: 'text-blue-800', borderColor: 'border-blue-300' },
+                'node-2': { id: 'node-2', title: 'Form a Hypothesis', top: '35%', left: '40%', color: 'bg-purple-100', textColor: 'text-purple-800', borderColor: 'border-purple-300' },
+                'node-3': { id: 'node-3', title: 'Design Experiment', top: '60%', left: '15%', color: 'bg-green-100', textColor: 'text-green-800', borderColor: 'border-green-300' },
+                'node-4': { id: 'node-4', title: 'Analyze Data', top: '60%', left: '65%', color: 'bg-yellow-100', textColor: 'text-yellow-800', borderColor: 'border-yellow-300' },
+                'node-5': { id: 'node-5', title: 'Draw Conclusion', top: '85%', left: '40%', color: 'bg-rose-100', textColor: 'text-rose-800', borderColor: 'border-rose-300' },
+            },
+            connections: [ { from: 'node-1', to: 'node-2' }, { from: 'node-2', to: 'node-3' }, { from: 'node-2', to: 'node-4' }, { from: 'node-3', to: 'node-5' }, { from: 'node-4', to: 'node-5' }]
+        },
+        'map-emo-reg': {
+            title: "The Emotional Regulation Map",
+            description: "Tools and strategies to help understand and manage feelings.",
+            nodes: {
+                'node-1': { id: 'node-1', title: 'Identifying Feelings', top: '20%', left: '45%', color: 'bg-sky-100', textColor: 'text-sky-800', borderColor: 'border-sky-300' },
+                'node-2': { id: 'node-2', title: 'Belly Breathing', top: '55%', left: '20%', color: 'bg-teal-100', textColor: 'text-teal-800', borderColor: 'border-teal-300' },
+                'node-3': { id: 'node-3', title: '5-4-3-2-1 Grounding', top: '55%', left: '70%', color: 'bg-amber-100', textColor: 'text-amber-800', borderColor: 'border-amber-300' },
+            },
+            connections: [ { from: 'node-1', to: 'node-2' }, { from: 'node-1', to: 'node-3' }]
+        }
+    };
+    let currentMapIdForEditor = 'map-sci-method';
+    let currentMapIdForExplorer = 'map-sci-method';
+    
+    // --- FUNCTIONS ---
+    function switchView(view) {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+
+        if (view === 'architect') {
+            libraryView.classList.add('active');
+            architectBtn.classList.add('bg-indigo-600', 'text-white', 'shadow-sm');
+            architectBtn.classList.remove('bg-slate-200', 'text-slate-800');
+            explorerBtn.classList.add('bg-slate-200', 'text-slate-800');
+            explorerBtn.classList.remove('bg-indigo-600', 'text-white', 'shadow-sm');
+        } else { // explorer
+            populateExplorer(currentMapIdForExplorer);
+            explorerView.classList.add('active');
+            explorerBtn.classList.add('bg-indigo-600', 'text-white', 'shadow-sm');
+            explorerBtn.classList.remove('bg-slate-200', 'text-slate-800');
+            architectBtn.classList.add('bg-slate-200', 'text-slate-800');
+            architectBtn.classList.remove('bg-indigo-600', 'text-white', 'shadow-sm');
+            drawLines();
+        }
+    }
+    
+    function populateLibrary() {
+        const grid = document.getElementById('map-library-grid');
+        grid.innerHTML = '';
+        Object.entries(mapsData).forEach(([mapId, map]) => {
+            const card = document.createElement('div');
+            card.className = 'map-card bg-white rounded-lg shadow-md border border-slate-200 p-6 cursor-pointer';
+            card.innerHTML = `
+                <h3 class="text-lg font-bold text-slate-800">${map.title}</h3>
+                <p class="text-sm text-slate-500 mt-1 h-10">${map.description}</p>
+                <div class="mt-4 pt-4 border-t border-slate-200 flex justify-end">
+                    <button class="text-sm font-medium text-indigo-600 hover:text-indigo-800">Edit Map</button>
+                </div>
+            `;
+            card.onclick = () => openEditor(mapId);
+            grid.appendChild(card);
+        });
+    }
+
+    function openEditor(mapId) {
+        currentMapIdForEditor = mapId;
+        const map = mapsData[mapId];
+        document.querySelector('#editingMapTitle span').textContent = map.title;
+
+        const architectNodesContainer = document.getElementById('architect-nodes');
+        architectNodesContainer.innerHTML = '';
+        Object.values(map.nodes).forEach(node => {
+            architectNodesContainer.appendChild(createNodeElement(node, true));
+        });
+
+        libraryView.classList.remove('active');
+        architectView.classList.add('active');
+        drawLines();
+    }
+    
+    function goBackToLibrary() {
+        architectView.classList.remove('active');
+        libraryView.classList.add('active');
+    }
+
+    function populateExplorer(mapId) {
+        currentMapIdForExplorer = mapId;
+        const map = mapsData[mapId];
+        document.querySelector('#exploringMapTitle span').textContent = map.title;
+        const explorerNodesContainer = document.getElementById('explorer-nodes');
+        explorerNodesContainer.innerHTML = '';
+        Object.values(map.nodes).forEach(node => {
+            explorerNodesContainer.appendChild(createNodeElement(node, false));
+        });
+    }
+
+    function createNodeElement(node, isArchitect) {
+        const div = document.createElement('div');
+        div.id = (isArchitect ? 'arch-' : 'exp-') + node.id;
+        div.className = `node absolute p-4 rounded-lg border-2 w-48 text-center font-semibold ${node.color} ${node.textColor} ${node.borderColor}`;
+        div.style.top = node.top;
+        div.style.left = node.left;
+        div.textContent = node.title;
+
+        if (isArchitect) {
+            div.onclick = () => openArchitectModal(node.title);
+        } else {
+            div.onclick = () => openExplorerModal(node);
+        }
+        return div;
+    }
+
+    function drawLines() {
+        requestAnimationFrame(() => {
+            const architectSvg = document.getElementById('architect-svg');
+            const explorerSvg = document.getElementById('explorer-svg');
+            architectSvg.innerHTML = '';
+            explorerSvg.innerHTML = '';
+            
+            const currentMapData = architectView.classList.contains('active') ? mapsData[currentMapIdForEditor] : mapsData[currentMapIdForExplorer];
+
+            if (currentMapData && currentMapData.connections) {
+                currentMapData.connections.forEach(conn => {
+                    if (architectView.classList.contains('active')) {
+                        const fromArch = document.getElementById('arch-' + conn.from);
+                        const toArch = document.getElementById('arch-' + conn.to);
+                        if (fromArch && toArch) createLine(fromArch, toArch, architectSvg);
+                    }
+                    if (explorerView.classList.contains('active')) {
+                        const fromExp = document.getElementById('exp-' + conn.from);
+                        const toExp = document.getElementById('exp-' + conn.to);
+                        if (fromExp && toExp) createLine(fromExp, toExp, explorerSvg);
+                    }
+                });
+            }
+        });
+    }
+
+    function createLine(el1, el2, svg) {
+        const rect1 = el1.getBoundingClientRect();
+        const rect2 = el2.getBoundingClientRect();
+        const svgRect = svg.getBoundingClientRect();
+        const x1 = rect1.left + rect1.width / 2 - svgRect.left;
+        const y1 = rect1.top + rect1.height / 2 - svgRect.top;
+        const x2 = rect2.left + rect2.width / 2 - svgRect.left;
+        const y2 = rect2.top + rect2.height / 2 - svgRect.top;
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', x1); line.setAttribute('y1', y1); line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+        line.setAttribute('class', 'line');
+        svg.appendChild(line);
+    }
+
+    // Modal Handlers
+    function openArchitectModal(title) { architectNodeTitle.textContent = title; architectModal.classList.remove('hidden'); architectModal.classList.add('flex'); setTimeout(() => { architectModal.querySelector('.modal-backdrop').classList.add('active'); architectModal.querySelector('.modal-content').classList.add('active'); }, 10); }
+    function closeArchitectModal() { const backdrop = architectModal.querySelector('.modal-backdrop'); const content = architectModal.querySelector('.modal-content'); backdrop.classList.remove('active'); content.classList.remove('active'); setTimeout(() => architectModal.classList.add('hidden'), 300); }
+    function openExplorerModal(node) {
+        const mapData = mapsData[currentMapIdForExplorer];
+        const fullNode = mapData.nodes[node.id];
+        explorerModalContent.innerHTML = `<div class="text-center p-8 md:p-12"><h2 class="text-3xl font-bold text-slate-800 mb-4">${fullNode.title}</h2><p class="text-slate-600 mb-8 max-w-md mx-auto">How would you like to learn about this? Choose the way that feels best for you.</p><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><button onclick="showExplorerContent('${fullNode.id}', 'read')" class="choice-button p-6 rounded-lg border-slate-300 bg-white hover:border-indigo-500 hover:bg-indigo-50"><span class="text-5xl">📖</span><p class="mt-2 text-lg font-semibold text-slate-800">Read</p></button><button onclick="showExplorerContent('${fullNode.id}', 'listen')" class="choice-button p-6 rounded-lg border-slate-300 bg-white hover:border-teal-500 hover:bg-teal-50"><span class="text-5xl">🎧</span><p class="mt-2 text-lg font-semibold text-slate-800">Listen</p></button><button onclick="showExplorerContent('${fullNode.id}', 'watch')" class="choice-button p-6 rounded-lg border-slate-300 bg-white hover:border-amber-500 hover:bg-amber-50"><span class="text-5xl">▶️</span><p class="mt-2 text-lg font-semibold text-slate-800">Watch</p></button></div><button onclick="closeExplorerModal()" class="mt-8 text-sm text-slate-500 hover:text-slate-800">Never mind, go back</button></div>`;
+        explorerModal.classList.remove('hidden'); explorerModal.classList.add('flex'); setTimeout(() => { explorerModal.querySelector('.modal-backdrop').classList.add('active'); explorerModal.querySelector('.modal-content').classList.add('active'); }, 10);
+    }
+    function showExplorerContent(nodeId, type) {
+        const node = mapsData[currentMapIdForExplorer].nodes[nodeId];
+        let contentHtml = '';
+        
+        let readContent = `<p>This is the detailed reading content for the "${node.title}" concept. Educators can fill this with text, images, and links to provide a rich learning experience.</p>`;
+        if (node.title === 'Form a Hypothesis') {
+             readContent = `<p>Let's explore what a hypothesis is. It's an educated guess that you can test.</p><ul class="list-disc list-inside"><li>A good hypothesis is a clear statement, not a question.</li><li>It should be testable. You must be able to design an experiment to see if it's true or false.</li><li>It is often written as an "If..., then..." statement.</li><li>Example: "<strong>If</strong> I water a plant every day, <strong>then</strong> it will grow taller than a plant that gets water once a week."</li></ul>`;
+        } else if (node.title === 'Belly Breathing') {
+             readContent = `<p>Here is a simple, step-by-step guide. You can read this at your own pace. There is no rush.</p><ul class="list-disc list-inside"><li>First, find a comfortable and quiet place to sit.</li><li>Place one hand on your belly.</li><li>Breathe in slowly through your nose for four seconds. Feel your belly expand like a balloon.</li><li>Hold your breath for four seconds.</li><li>Breathe out slowly through your mouth for six seconds. Feel your belly go down.</li><li>Repeat this five times.</li></ul>`;
+        }
+
+        switch(type) {
+            case 'read':
+                contentHtml = `<div class="p-8"><h3 class="text-2xl font-bold text-slate-800 mb-4">📖 ${node.title}</h3><div class="prose max-w-none text-slate-700 space-y-4">${readContent}</div></div>`;
+                break;
+            case 'listen':
+                 contentHtml = `<div class="p-8 text-center"><h3 class="text-2xl font-bold text-slate-800 mb-4">🎧 ${node.title}</h3><p class="text-slate-600 mb-6">Press play to listen to a guided exercise.</p><div class="bg-slate-100 rounded-lg p-6 flex items-center justify-center space-x-4"><svg class="w-16 h-16 text-teal-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"></path></svg><p class="font-medium text-slate-700">AudioFor_${node.title.replace(/\s/g, '')}.mp3</p></div></div>`;
+                break;
+            case 'watch':
+                contentHtml = `<div class="p-1"><h3 class="text-2xl font-bold text-slate-800 mb-4 px-8 pt-6">▶️ ${node.title}</h3><div class="aspect-w-16 aspect-h-9 bg-black rounded-lg mx-auto overflow-hidden"><img src="https://placehold.co/1600x900/000000/FFFFFF?text=Video+Player" class="w-full h-full object-cover" alt="Video placeholder"/></div><p class="text-slate-600 mt-4 px-8 pb-6">Watch a short video about "${node.title}".</p></div>`;
+                break;
+        }
+
+        explorerModalContent.innerHTML = `${contentHtml}<div class="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center"><button onclick="openExplorerModal(mapsData['${currentMapIdForExplorer}'].nodes['${nodeId}'])" class="text-sm font-medium text-slate-600 hover:text-slate-900">&larr; Back to choices</button><button onclick="closeExplorerModal()" class="px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-md hover:bg-teal-700">I'm Done!</button></div>`;
+    }
+    function closeExplorerModal() { const backdrop = explorerModal.querySelector('.modal-backdrop'); const content = explorerModal.querySelector('.modal-content'); backdrop.classList.remove('active'); content.classList.remove('active'); setTimeout(() => explorerModal.classList.add('hidden'), 300); }
+    
+    // --- INITIALIZATION ---
+    document.addEventListener('DOMContentLoaded', () => {
+        populateLibrary();
+
+        architectBtn.onclick = () => switchView('architect');
+        explorerBtn.onclick = () => {
+            // Replaced prompt() which can be unreliable in some environments.
+            // This new logic makes the view switching more intuitive.
+            
+            // If the architect is currently editing a map, we'll explore that one.
+            if (architectView.classList.contains('active')) {
+                currentMapIdForExplorer = currentMapIdForEditor;
+            } else {
+                // Otherwise, when switching from the library, default to the first map.
+                currentMapIdForExplorer = Object.keys(mapsData)[0];
+            }
+            switchView('explorer');
+        };
+        backToLibraryBtn.onclick = goBackToLibrary;
+        document.getElementById('closeArchitectModal').onclick = closeArchitectModal;
+        
+        architectModal.querySelector('.modal-backdrop').onclick = closeArchitectModal;
+        explorerModal.querySelector('.modal-backdrop').onclick = closeExplorerModal;
+        
+        switchView('architect'); // Start in architect's library view
+        window.onresize = drawLines;
+    });
+
+</script>
+
+</body>
+</html>
+
+
